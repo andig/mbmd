@@ -49,6 +49,11 @@ func (b *RTUOverTCP) ModbusClient() modbus.Client {
 	return b.Client
 }
 
+// ModbusHandler returns the RTU modbus client
+func (b *RTUOverTCP) ModbusHandler() modbus.ClientHandler {
+	return b.Handler
+}
+
 // Logger sets a logging instance for physical bus operations
 func (b *RTUOverTCP) Logger(l Logger) {
 	b.Handler.Logger = l

@@ -40,6 +40,11 @@ func (b *Mock) ModbusClient() modbus.Client {
 	return b.Client
 }
 
+// ModbusHandler returns the RTU modbus client
+func (b *Mock) ModbusHandler() modbus.ClientHandler {
+	return nil
+}
+
 // Logger sets a logging instance for physical bus operations
 func (b *Mock) Logger(l Logger) {
 }

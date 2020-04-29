@@ -62,6 +62,11 @@ func (b *RTU) ModbusClient() modbus.Client {
 	return b.Client
 }
 
+// ModbusHandler returns the RTU modbus client
+func (b *RTU) ModbusHandler() modbus.ClientHandler {
+	return b.Handler
+}
+
 // Logger sets a logging instance for physical bus operations
 func (b *RTU) Logger(l Logger) {
 	b.Handler.Logger = l

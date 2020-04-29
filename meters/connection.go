@@ -11,6 +11,9 @@ type Connection interface {
 	// ModbusClient returns the underlying modbus client
 	ModbusClient() modbus.Client
 
+	// ModbusHandler returns the underlying modbus handler
+	ModbusHandler() modbus.ClientHandler
+
 	// Slave sets the modbus device id for the following operations
 	Slave(deviceID uint8)
 
