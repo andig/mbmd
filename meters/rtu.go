@@ -3,6 +3,7 @@ package meters
 import (
 	"log"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/grid-x/modbus"
@@ -10,6 +11,7 @@ import (
 
 // RTU is an RTU modbus connection
 type RTU struct {
+	mu      sync.Mutex
 	device  string
 	Client  modbus.Client
 	Handler *modbus.RTUClientHandler
@@ -40,7 +42,10 @@ func NewClientHandler(device string, baudrate int, comset string) *modbus.RTUCli
 
 // NewRTU creates a RTU modbus client
 func NewRTU(device string, baudrate int, comset string) Connection {
-	handler := NewClientHandler(device, baudrate, comset)
+	return newRTUForHandler(device, NewClientHandler(device, baudrate, comset))
+}
+
+func newRTUForHandler(device string, handler *modbus.RTUClientHandler) Connection {
 	client := modbus.NewClient(handler)
 
 	b := &RTU{
@@ -64,11 +69,17 @@ func (b *RTU) ModbusClient() modbus.Client {
 
 // Logger sets a logging instance for physical bus operations
 func (b *RTU) Logger(l Logger) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	b.Handler.Logger = l
 }
 
 // Slave sets the modbus device id for the following operations
 func (b *RTU) Slave(deviceID uint8) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	// Some devices like SDM need to have a little pause between querying different device ids
 	if b.prevID == 0 || deviceID != b.prevID {
 		b.prevID = deviceID
@@ -77,8 +88,22 @@ func (b *RTU) Slave(deviceID uint8) {
 	}
 }
 
+// Slave sets the modbus device id for the following operations
+func (b *RTU) Clone(deviceID uint8) Connection {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	h := b.Handler.Clone()
+	h.SetSlave(deviceID)
+
+	return newRTUForHandler(b.device, h)
+}
+
 // Timeout sets the modbus timeout
 func (b *RTU) Timeout(timeout time.Duration) time.Duration {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	t := b.Handler.Timeout
 	b.Handler.Timeout = timeout
 	return t

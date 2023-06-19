@@ -1,6 +1,7 @@
 package meters
 
 import (
+	"sync"
 	"time"
 
 	"github.com/grid-x/modbus"
@@ -8,6 +9,7 @@ import (
 
 // TCP is a TCP modbus connection
 type TCP struct {
+	mu      sync.Mutex
 	address string
 	Client  modbus.Client
 	Handler *modbus.TCPClientHandler
@@ -28,7 +30,10 @@ func NewTCPClientHandler(device string) *modbus.TCPClientHandler {
 
 // NewTCP creates a TCP modbus client
 func NewTCP(address string) Connection {
-	handler := NewTCPClientHandler(address)
+	return newTCPForHandler(address, NewTCPClientHandler(address))
+}
+
+func newTCPForHandler(address string, handler *modbus.TCPClientHandler) Connection {
 	client := modbus.NewClient(handler)
 
 	b := &TCP{
@@ -52,12 +57,29 @@ func (b *TCP) ModbusClient() modbus.Client {
 
 // Logger sets a logging instance for physical bus operations
 func (b *TCP) Logger(l Logger) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	b.Handler.Logger = l
 }
 
 // Slave sets the modbus device id for the following operations
 func (b *TCP) Slave(deviceID uint8) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	b.Handler.SetSlave(deviceID)
+}
+
+// Slave sets the modbus device id for the following operations
+func (b *TCP) Clone(deviceID uint8) Connection {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	h := b.Handler.Clone()
+	h.SetSlave(deviceID)
+
+	return newTCPForHandler(b.address, h)
 }
 
 // Timeout sets the modbus timeout

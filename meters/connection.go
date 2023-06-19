@@ -14,6 +14,9 @@ type Connection interface {
 	// Slave sets the modbus device id for the following operations
 	Slave(deviceID uint8)
 
+	// Clone clones the packager for new modbus device id
+	Clone(deviceID uint8) Connection
+
 	// Timeout sets the modbus timeout
 	Timeout(timeout time.Duration) time.Duration
 

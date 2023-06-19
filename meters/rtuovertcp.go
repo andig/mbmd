@@ -1,6 +1,7 @@
 package meters
 
 import (
+	"sync"
 	"time"
 
 	"github.com/grid-x/modbus"
@@ -8,6 +9,7 @@ import (
 
 // RTUOverTCP is a RTU encoder over a TCP modbus connection
 type RTUOverTCP struct {
+	mu      sync.Mutex
 	address string
 	Client  modbus.Client
 	Handler *modbus.RTUOverTCPClientHandler
@@ -28,7 +30,10 @@ func NewRTUOverTCPClientHandler(device string) *modbus.RTUOverTCPClientHandler {
 
 // NewRTUOverTCP creates a TCP modbus client
 func NewRTUOverTCP(address string) Connection {
-	handler := NewRTUOverTCPClientHandler(address)
+	return newRTUOverTCPForHandler(address, NewRTUOverTCPClientHandler(address))
+}
+
+func newRTUOverTCPForHandler(address string, handler *modbus.RTUOverTCPClientHandler) Connection {
 	client := modbus.NewClient(handler)
 
 	b := &RTUOverTCP{
@@ -52,11 +57,17 @@ func (b *RTUOverTCP) ModbusClient() modbus.Client {
 
 // Logger sets a logging instance for physical bus operations
 func (b *RTUOverTCP) Logger(l Logger) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	b.Handler.Logger = l
 }
 
 // Slave sets the modbus device id for the following operations
 func (b *RTUOverTCP) Slave(deviceID uint8) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	// Some devices like SDM need to have a little pause between querying different device ids
 	if b.prevID != 0 && deviceID != b.prevID {
 		time.Sleep(time.Duration(100) * time.Millisecond)
@@ -64,10 +75,29 @@ func (b *RTUOverTCP) Slave(deviceID uint8) {
 
 	b.prevID = deviceID
 	b.Handler.SetSlave(deviceID)
+
+	// new client for new device id
+	h := b.Handler.Clone()
+	h.SetSlave(deviceID)
+	b.Client = modbus.NewClient(h)
+}
+
+// Slave sets the modbus device id for the following operations
+func (b *RTUOverTCP) Clone(deviceID uint8) Connection {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	h := b.Handler.Clone()
+	h.SetSlave(deviceID)
+
+	return newRTUOverTCPForHandler(b.address, h)
 }
 
 // Timeout sets the modbus timeout
 func (b *RTUOverTCP) Timeout(timeout time.Duration) time.Duration {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	t := b.Handler.Timeout
 	b.Handler.Timeout = timeout
 	return t
@@ -75,6 +105,9 @@ func (b *RTUOverTCP) Timeout(timeout time.Duration) time.Duration {
 
 // ConnectDelay sets the the initial delay after connecting before starting communication
 func (b *RTUOverTCP) ConnectDelay(delay time.Duration) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	b.Handler.ConnectDelay = delay
 }
 

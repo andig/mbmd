@@ -54,3 +54,6 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+// replace github.com/grid-x/modbus => ../gridx-modbus
+replace github.com/grid-x/modbus => github.com/andig/gridx-modbus v0.0.0-20230618091634-9f0de8712080

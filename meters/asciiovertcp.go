@@ -1,6 +1,7 @@
 package meters
 
 import (
+	"sync"
 	"time"
 
 	"github.com/grid-x/modbus"
@@ -8,6 +9,7 @@ import (
 
 // ASCIIOverTCP is an ASCII encoder over a TCP modbus connection
 type ASCIIOverTCP struct {
+	mu      sync.Mutex
 	address string
 	Client  modbus.Client
 	Handler *modbus.ASCIIOverTCPClientHandler
@@ -28,7 +30,10 @@ func NewASCIIOverTCPClientHandler(device string) *modbus.ASCIIOverTCPClientHandl
 
 // NewASCIIOverTCP creates a TCP modbus client
 func NewASCIIOverTCP(address string) Connection {
-	handler := NewASCIIOverTCPClientHandler(address)
+	return newASCIIOverTCPForHandler(address, NewASCIIOverTCPClientHandler(address))
+}
+
+func newASCIIOverTCPForHandler(address string, handler *modbus.ASCIIOverTCPClientHandler) Connection {
 	client := modbus.NewClient(handler)
 
 	b := &ASCIIOverTCP{
@@ -52,11 +57,17 @@ func (b *ASCIIOverTCP) ModbusClient() modbus.Client {
 
 // Logger sets a logging instance for physical bus operations
 func (b *ASCIIOverTCP) Logger(l Logger) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	b.Handler.Logger = l
 }
 
 // Slave sets the modbus device id for the following operations
 func (b *ASCIIOverTCP) Slave(deviceID uint8) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	// Some devices like SDM need to have a little pause between querying different device ids
 	if b.prevID != 0 && deviceID != b.prevID {
 		time.Sleep(time.Duration(100) * time.Millisecond)
@@ -66,8 +77,22 @@ func (b *ASCIIOverTCP) Slave(deviceID uint8) {
 	b.Handler.SetSlave(deviceID)
 }
 
+// Slave sets the modbus device id for the following operations
+func (b *ASCIIOverTCP) Clone(deviceID uint8) Connection {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	h := b.Handler.Clone()
+	h.SetSlave(deviceID)
+
+	return newASCIIOverTCPForHandler(b.address, h)
+}
+
 // Timeout sets the modbus timeout
 func (b *ASCIIOverTCP) Timeout(timeout time.Duration) time.Duration {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	t := b.Handler.Timeout
 	b.Handler.Timeout = timeout
 	return t
@@ -75,6 +100,9 @@ func (b *ASCIIOverTCP) Timeout(timeout time.Duration) time.Duration {
 
 // ConnectDelay sets the the initial delay after connecting before starting communication
 func (b *ASCIIOverTCP) ConnectDelay(delay time.Duration) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	b.Handler.ConnectDelay = delay
 }
 

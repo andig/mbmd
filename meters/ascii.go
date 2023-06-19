@@ -3,6 +3,7 @@ package meters
 import (
 	"log"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/grid-x/modbus"
@@ -10,6 +11,7 @@ import (
 
 // ASCII is an ASCII modbus connection
 type ASCII struct {
+	mu      sync.Mutex
 	device  string
 	Client  modbus.Client
 	Handler *modbus.ASCIIClientHandler
@@ -40,7 +42,10 @@ func NewASCIIClientHandler(device string, baudrate int, comset string) *modbus.A
 
 // NewASCII creates a RTU modbus client
 func NewASCII(device string, baudrate int, comset string) Connection {
-	handler := NewASCIIClientHandler(device, baudrate, comset)
+	return newASCIIForHandler(device, NewASCIIClientHandler(device, baudrate, comset))
+}
+
+func newASCIIForHandler(device string, handler *modbus.ASCIIClientHandler) Connection {
 	client := modbus.NewClient(handler)
 
 	b := &ASCII{
@@ -64,11 +69,17 @@ func (b *ASCII) ModbusClient() modbus.Client {
 
 // Logger sets a logging instance for physical bus operations
 func (b *ASCII) Logger(l Logger) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	b.Handler.Logger = l
 }
 
 // Slave sets the modbus device id for the following operations
 func (b *ASCII) Slave(deviceID uint8) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	// Some devices like SDM need to have a little pause between querying different device ids
 	if b.prevID != 0 && deviceID != b.prevID {
 		time.Sleep(time.Duration(100) * time.Millisecond)
@@ -78,8 +89,22 @@ func (b *ASCII) Slave(deviceID uint8) {
 	b.Handler.SetSlave(deviceID)
 }
 
+// Slave sets the modbus device id for the following operations
+func (b *ASCII) Clone(deviceID uint8) Connection {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	h := b.Handler.Clone()
+	h.SetSlave(deviceID)
+
+	return newASCIIForHandler(b.device, h)
+}
+
 // Timeout sets the modbus timeout
 func (b *ASCII) Timeout(timeout time.Duration) time.Duration {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	t := b.Handler.Timeout
 	b.Handler.Timeout = timeout
 	return t

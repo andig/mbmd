@@ -48,6 +48,11 @@ func (b *Mock) Logger(l Logger) {
 func (b *Mock) Slave(deviceID uint8) {
 }
 
+// Slave sets the modbus device id for the following operations
+func (b *Mock) Clone(uint8) Connection {
+	return b
+}
+
 // Timeout sets the modbus timeout
 func (b *Mock) Timeout(timeout time.Duration) time.Duration {
 	return timeout
